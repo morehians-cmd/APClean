@@ -1,0 +1,518 @@
+const RGROUPS=['Preschool','Elementary','Junior High School','Senior High \u2013 Grade 11','Senior High \u2013 Grade 12'],RGC=['#db2777','#16a34a','#2563eb','#7c3aed','#d97706'];
+const RL=()=>[['daily','Daily Report','Admission counts per level, cluster and category','c1',I.rep],['overview','Admission Conversion','Applicants vs enrolled, with conversion rates','c2',I.home],['section','Section Report','Male, female and total per section, with masterlists','c3',I.users],['advisory','Advisory Class','Class list per section, split by sex','c4',I.adm],['personal','Learner Personal Data','Personal, family and primary contact data','c5',I.me],['requirements','Requirements Status','Submitted vs deficient documents','c3',I.rep],['scholar','Scholarship Beneficiaries','Recipients by voucher / scholarship type','c1',I.sch],['demographic','Demographic Report','Sex, religion, age, school and address by level','c4',I.rep],['school','Per School','Learners per previous school, by level','c2',I.rep],['adviser','Per Previous Adviser','Learners per previous adviser and school, by level','c4',I.users],['referral','Referral','Referrers, referred learners and the claim form','c5',I.cal],['noconsent','No Parental Consent','Learners without the consent form','c3',I.rep]];
+const RGRP=[['Admissions',['daily','overview','referral','noconsent']],['Classes and learners',['section','advisory','personal','requirements']],['Insights',['scholar','demographic','school','adviser']]];
+const PDEF=['LRN','Classification','Category','GradeLevel','Section','Birthdate','Age','SexualOrient','Religion','Mobile','FatherName','FatherOccupation','FatherEducation','FatherMobile','FatherReligion','MotherName','MotherOccupation','MotherEducation','MotherMobile','MotherReligion','EmName','EmRelation','EmMobile'];
+function pickerHTML(){const on=S.pf||PDEF;
+ const grp=(st,si)=>`<div class="pfh" style="font-size:12px;letter-spacing:.06em;color:var(--blue)">STEP ${si+1} \u2013 ${esc(st[0]).toUpperCase()} <button class="pill" style="margin-left:8px;padding:3px 12px" data-act="pfstep" data-v="${si}">Select / clear step</button></div>`+st[1].map(k=>{let fs=S.fields.filter(f=>f[0]===k&&f[1]!=='FullName'&&f[3]!=='src');if(k==='personal'){const i=fs.findIndex(f=>f[1]==='AddressLine1');fs.splice(Math.max(0,i),0,['personal','FullAddress','Complete Address (combined)','txt'])}
+  return `<div class="pfh">${esc(SECT[k])}</div><div class="pfg">${fs.map(f=>`<label class="pfc"><input type="checkbox" class="pfx" data-st="${si}" value="${esc(f[1])}" ${on.includes(f[1])?'checked':''}> ${esc(flab(f))}</label>`).join('')}</div>`}).join('');
+ return `<div class="card"><div class="ch"><h3>Choose the data to include</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn alt" data-act="pfall">Select all</button><button class="btn alt" data-act="pfnone">Clear all</button><button class="btn alt" data-act="pfdef">Default selection</button></div></div><p style="color:var(--mut);margin:0 0 4px">Every learner is shown on one row. Enrollment ID and Full Name are always included. Only the boxes you tick appear as columns, so the CSV opens ready to check in Excel.</p>${STEPS.map(grp).join('')}</div>`}
+const pfSet=f=>document.querySelectorAll('.pfx').forEach(x=>x.checked=f(x));
+const secList=g=>{const o=[];Object.keys(S.sections).forEach(k=>{if(k.split('|')[0]===g)S.sections[k].forEach(x=>{if(!o.includes(x))o.push(x)})});return o.sort()};
+const secOpts=()=>'<option value="*">All sections</option>'+secList(S.rf.grade).map(x=>`<option value="${esc(x)}" ${S.rf.section===x?'selected':''}>${esc(x)}</option>`).join('')+'<option value="(none)">Unassigned</option>';
+function rfGrade(){S.rf={grade:$('rfg').value,section:'*'};$('rfs').innerHTML=secOpts()}
+function selRep(t){S.rt=t;document.querySelectorAll('.rc').forEach(b=>b.classList.toggle('on',b.dataset.v===t));const f=$('rfil');$('rout').innerHTML='';
+ if(['advisory','personal','requirements'].includes(t)){f.innerHTML=`<div class="card rfc"><div class="ch"><h3>Choose a class</h3></div><div class="g" style="align-items:end"><div class="f"><label>Grade level</label><select id="rfg" onchange="rfGrade()">${S.grades.map(g=>`<option ${g===S.rf.grade?'selected':''}>${g}</option>`).join('')}</select></div><div class="f"><label>Section</label><select id="rfs">${secOpts()}</select></div><div class="f"><button class="btn" data-act="rgo">Generate report</button></div></div></div>${t==='personal'?pickerHTML():''}`;f.scrollIntoView({behavior:'smooth',block:'start'})}
+ else if(t==='scholar'){S.rlv=S.rlv||'All';f.innerHTML=`<div class="card rfc"><div class="ch"><h3>School level</h3></div><div class="rpills">${['All'].concat(RGROUPS).map(x=>`<button class="pill ${x===S.rlv?'on':''}" data-act="rlvl" data-v="${esc(x)}">${x==='All'?'All levels':esc(x)}</button>`).join('')}</div></div>`;runRep('scholar',S.rlv)}
+ else{f.innerHTML='';runRep(t)}}
+function runRep(t,a){S.rtype=t;call('report',[T(),t,a==null?'':a],r=>{S.rep=r.data;S.refName=a;const d=r.data,x=RL().find(y=>y[0]===({refd:'referral',advd:'adviser'}[t]||t))||['','','','c1',I.rep];
+ $('rout').innerHTML=`<div class="rhd"><div class="rht"><span class="ao ${x[3]}">${x[4]}</span><div><h3>${esc(d.title)}</h3><small>${esc(d.asof)}</small></div></div><div class="rha"><button class="btn alt" data-act="prrep">Print / Save as PDF</button><button class="btn alt" data-act="csv">Download CSV</button>${t==='refd'?'<button class="btn" data-act="prref">Print referral form</button>':''}${t==='advd'?'<button class="btn alt" data-act="advback">&larr; Back to adviser report</button>':''}</div></div><div id="rpbody">${(d.blocks||[]).map(b=>blockHTML(b,t)).join('')}</div>`;
+ $('rout').scrollIntoView({behavior:'smooth',block:'start'})})}
+const BD=(k,v)=>{v=String(v==null?'':v);if(k==='status'){const c=v==='Enrolled'?'g':v==='Not Enrolled'?'y':v==='Cancelled'?'r':'x';return `<span class="rb ${c}">${esc(v)}</span>`}if(!v)return '';return `<span class="rb ${v==='N/A'?'x':/^Deficient/.test(v)?'r':'g'}">${esc(v)}</span>`};
+
+const RRK='mrh_rr';
+const rrGet=()=>{try{const ok=RL().map(x=>x[0]);return JSON.parse(localStorage.getItem(RRK)||'[]').filter(k=>ok.includes(k))}catch(e){return []}};
+
+function tableHTML(b,t){const num=b.num||[],bc=b.bcols||{},hc=b.hcols||{},col=b.color||'#12204a',act=!!b.actions,ex=t==='referral'||t==='noconsent'||t==='adviser';
+ const hb=i=>hc[i]||(b.levelCols&&i>=1&&i<=5?RGC[i-1]:col);
+ const head=b.cols.map((c,i)=>`<th class="${num.includes(i)?'n':''}" style="background:${hb(i)}">${esc(c)}</th>`).join('')+(act?`<th class="nopr" style="background:${col}">Masterlist</th>`:'')+(ex?`<th class="nopr" style="background:${col}"></th>`:'');
+ const body=b.rows.map((x,ri)=>{const tot=x[0]==='TOTAL',tip=b.tips&&b.tips[ri],a=act&&b.actions[ri];
+  const cells=x.map((c,i)=>{let h=bc[i]?BD(bc[i],c):esc(c);if(i===0&&b.rcol&&b.rcol[ri])h=`<i class="dot" style="background:${b.rcol[ri]}"></i>`+h;if(b.pctCol===i&&!tot)h+=`<span class="pbar"><u style="width:${parseFloat(c)||0}%;background:#16a34a"></u></span>`;return `<td class="${num.includes(i)?'n':''}">${h}</td>`}).join('');
+  const ext=(act?`<td class="nopr">${a?`<button class="btn alt" data-act="mlist" data-v="${esc(a.g+'|'+a.s)}">Print Masterlist</button>`:''}</td>`:'')+(t==='referral'&&!tot?`<td class="nopr"><button class="btn alt" data-act="refv" data-v="${esc(x[0])}">View</button> <button class="btn alt" data-act="refp" data-v="${esc(x[0])}">Referral form</button></td>`:t==='referral'?'<td class="nopr"></td>':'')+(t==='adviser'?(tot?'<td class="nopr"></td>':`<td class="nopr"><button class="btn alt" data-act="advv" data-v="${esc(JSON.stringify([x[0],x[1]]))}">View learners</button></td>`):'')+(t==='noconsent'?`<td class="nopr"><button class="btn red" data-act="delc" data-v="${esc(x[0])}">Delete record</button></td>`:'');
+  return `<tr class="${tot?'tt':''}"${tip?` data-act="tip" data-v="${esc(tip)}" title="${esc(tip)}" style="cursor:pointer"`:''}>${cells}${ext}</tr>`}).join('')||`<tr><td colspan="${b.cols.length}" style="color:var(--mut)">No learners found.</td></tr>`;
+ return `<div class="card"><div class="rtitle"><i style="background:${col}"></i><h3>${esc(b.title)}</h3></div>${b.charts?`<div class="chg" style="margin-bottom:16px">${b.charts.map(chartHTML).join('')}</div>`:''}<div class="tw"><table class="rt${b.cols.length>8?' wide':''}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div>`}
+function blockHTML(b,t){let h='';if(b.kpis)h+=`<div class="kpis">${b.kpis.map(k=>`<div class="kpi"><div class="ki ${k.c||'c1'}">${I.adm}</div><div><small>${esc(k.label)}</small><b>${esc(k.value)}</b><span>${esc(k.sub||'')}</span></div></div>`).join('')}</div>`;
+ if(b.cols)h+=tableHTML(b,t);else if(b.charts)h+=`<div class="card"><div class="chg">${b.charts.map(chartHTML).join('')}</div></div>`;return h}
+function repHTML(d,t){return `<p style="color:var(--mut);margin:0 0 12px">${esc(d.asof)}</p>`+(d.blocks||[]).map(b=>blockHTML(b,t)).join('')}
+function printReport(d,t){const land=(d.blocks||[]).some(b=>b.cols&&b.cols.length>8);printHTML(`<style>@page{size:A4 ${land?'landscape':'portrait'};margin:0}</style><div class="rpp"><div class="rh"><img src="${LOGO}" alt=""><div><b>MOREH ACADEMY</b><span>${esc(d.title)}</span></div></div>${repHTML(d,t)}</div>`,false,d.title)}
+
+
+/* ===== Reports & Analytics v3, Phase 1 + school-year filter =====
+   Replaces rep(), selRep() and runRep(). Reuses blockHTML, printReport, pickerHTML, secOpts, rfGrade and every existing act.* hook. */
+(function(){const s=document.createElement('style');s.textContent=`
+@media screen{
+.rpx-head{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);padding:14px 16px;margin-bottom:16px}
+.rpx-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.rpx-row+.rpx-row{margin-top:12px}
+.rpx-title{margin-right:auto;min-width:180px}
+.rpx-title h2,.rpx-title h3{font:800 20px/1.2 Inter,sans-serif;color:var(--navy);margin:0}
+.rpx-title h3{font-size:17px}
+.rpx-title small{display:block;color:var(--mut);font-size:12.5px;margin-top:2px}
+.rpx-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rpx-lb{font-size:12px;font-weight:700;color:var(--mut)}
+.rpx-sy,.rpx-srch input{height:42px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px;font:inherit;background:#fff;color:var(--txt)}
+.rpx-srch{flex:1 1 240px;max-width:380px}
+.rpx-srch input{width:100%;padding-left:40px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E") no-repeat 13px center/18px}
+.rpx-sy:focus,.rpx-srch input:focus{outline:0;border-color:var(--blue);box-shadow:var(--ring)}
+.rpx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:14px;margin-bottom:6px}
+.rpx-c{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff;transition:box-shadow .15s,border-color .15s}
+.rpx-c:hover{border-color:#bcd0f7;box-shadow:var(--sh2)}
+.rpx-c b{color:var(--navy);font-size:15px}.rpx-c p{margin:0;color:var(--mut);font-size:13px;line-height:1.5;flex:1}
+.rpx-ct{display:flex;justify-content:space-between;align-items:center}
+.rpx-ct .ao{width:38px;height:38px;border-radius:12px}
+.rpx-cf{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.rpx-star{border:0;background:none;cursor:pointer;color:#94a3b8;display:flex;padding:6px;border-radius:8px}
+.rpx-star:hover{background:var(--soft)}.rpx-star.on{color:#f5b301}.rpx-star.on svg{fill:#f5b301}
+.rpx-n{color:var(--mut);margin:0}
+.rpx-sec{margin:0 0 16px}
+html[data-theme=dark] .rpx-head,html[data-theme=dark] .rpx-c{background:#10173a;border-color:var(--line)}
+html[data-theme=dark] .rpx-sy,html[data-theme=dark] .rpx-srch input{background-color:#0a1030;color:var(--txt);border-color:rgba(150,170,255,.3)}
+@media(max-width:600px){.rpx-srch{max-width:none}}
+}`;document.head.appendChild(s)})();
+
+S.rrid=0;S.rhid=0;S.rlim={};
+const RP_CATS=[
+ {id:'adm',n:'Admissions & Enrollment',ids:['daily','overview','referral'],sc:['requirements','noconsent']},
+ {id:'cls',n:'Learners & Classes',ids:['section','advisory','personal','adviser'],sc:[]},
+ {id:'dem',n:'Demographics',ids:['demographic','school'],sc:[]},
+ {id:'sch',n:'Scholarships',ids:['scholar'],sc:[]},
+ {id:'cmp',n:'Compliance',ids:['requirements','noconsent'],sc:[]}];
+/* filter kind per report: none = runs at once, class = grade + section picker, level = school-level pills */
+const RP_F={daily:'none',overview:'none',referral:'none',noconsent:'none',section:'none',advisory:'class',personal:'class',requirements:'class',adviser:'none',demographic:'none',school:'none',scholar:'level'};
+const RPT=[['ov','Overview'],['lib','Reports Library'],['an','Analytics'],['sv','Saved Reports'],['hi','Report History']];
+const rpR=id=>RL().find(x=>x[0]===id),rpCat=id=>RP_CATS.find(c=>c.ids.includes(id)),rpPc=(a,b)=>b?(Math.round(a/b*1000)/10).toFixed(1)+'%':'0.0%';
+const rpLs=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||'null')||d}catch(e){return d}};
+const rpFav=()=>(S.rprefs?S.rprefs.favs:rpLs('mrh_rf',[])).filter(k=>RP_F[k]),rpUse=()=>rpLs('mrh_ru',{});
+function rpTouch(id){try{localStorage.setItem(RRK,JSON.stringify([id].concat(rrGet().filter(k=>k!==id)).slice(0,6)));const u=rpUse();u[id]=(u[id]||0)+1;localStorage.setItem('mrh_ru',JSON.stringify(u))}catch(e){}}
+const rpYrs=()=>{if(S.ryrs&&S.ryrs.length)return S.ryrs;const a=parseInt(String(S.cfg.sy).slice(0,4),10),o=[];for(let y=a;y>=2025;y--)o.push(y+'-'+(y+1));return o};
+const rpStar=(id,on)=>`<button type="button" class="rpx-star ${on?'on':''}" data-act="rfav" data-v="${id}" aria-pressed="${on}" aria-label="${on?'Remove from favorites':'Add to favorites'}">${I.star}</button>`;
+
+/* ---------- page shell ---------- */
+rep=function(){head('Reports & Analytics','School Year '+String(S.cfg.sy).replace('-','\u2013'));
+ S.rv='ov';S.rw=null;S.rt='';S.rep=null;S.rf=S.rf||{grade:'Grade 7',section:'*'};S.rsy=S.rsy||S.cfg.sy;S.rq='';S.rcat='';S.rtab='all';S.rlim={};
+ $('view').innerHTML=`<div class="rpx-head"><div class="rpx-row"><div class="rpx-title"><h2>Reports &amp; Analytics</h2><small id="rpupd">&nbsp;</small></div>
+  <div class="rpx-srch"><input id="rpq" type="search" placeholder="Search reports" aria-label="Search reports" oninput="rpSearch(this.value)"></div>
+  <div class="rpx-ctl"><label class="rpx-lb" for="rpsy">School year</label><select id="rpsy" class="rpx-sy" onchange="rpYear(this.value)"></select><button class="btn alt" data-act="rprefresh">Refresh</button></div></div>
+  <div class="rpx-row"><div class="seg" id="rptabs" role="tablist" aria-label="Reports sections"></div></div></div><div id="rpnote"></div><div id="rpmain"></div>`;
+ rpYearSel();rpTabs();rpBody();rpHome()};
+function rpYearSel(){const e=$('rpsy');if(!e)return;e.innerHTML=rpYrs().map(y=>`<option value="${y}" ${y===S.rsy?'selected':''}>SY ${y.replace('-','\u2013')}${y===S.cfg.sy?' (active)':''}</option>`).join('')}
+function rpTabs(){const e=$('rptabs');if(e)e.innerHTML=RPT.map(x=>`<button type="button" role="tab" class="${S.rv===x[0]?'on':''}" aria-selected="${S.rv===x[0]}" data-act="rptab" data-v="${x[0]}">${x[1]}</button>`).join('')}
+function rpUpd(){const e=$('rpupd');if(e)e.textContent='School Year '+String(S.rsy).replace('-','\u2013')+(S.rupd?' \u00b7 Updated '+S.rupd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'')}
+function rpNote(){const e=$('rpnote');if(e)e.innerHTML=S.rsy!==S.cfg.sy?`<div class="scn" style="margin:0 0 16px">${SICO.info}<div><b>Viewing School Year ${esc(S.rsy)}.</b> Past years are rebuilt from Enrollment History plus records not yet re-enrolled. Statuses are as they were when each year was archived.</div></div>`:''}
+function rpBody(){const e=$('rpmain');if(!e)return;({ov:rpOv,lib:rpLib,an:rpAn,sv:rpSv,hi:rpHi})[S.rv](e);rpNote();rpUpd()}
+
+act.rptab=v=>{S.rv=v;S.rw=null;rpTabs();rpBody()};
+function rpSearch(v){S.rq=v;if(String(v).trim()&&(S.rv!=='lib'||S.rw)){S.rv='lib';S.rw=null;S.rtab='all';rpTabs();rpBody()}else if(S.rv==='lib'&&!S.rw)rpList()}
+function rpYear(v){S.rsy=v;S.rlim={};rpNote();rpUpd();rpHome();
+ const w=$('rpwsub');if(w)w.textContent=w.dataset.pre+' \u00b7 School Year '+v;
+ if(S.rw){if(RP_F[S.rw]==='class'){if(S.rep&&$('rout'))runRep(S.rtype,S.refName)}else rpBody()}}
+act.rprefresh=()=>{rpHome();if(S.rw&&S.rep&&$('rout'))runRep(S.rtype,S.refName)};
+
+/* ---------- Overview ---------- */
+function rpHome(){const id=++S.rhid,sy=S.rsy;S.rh=null;if(S.rv==='ov'&&$('rpmain'))rpBody();
+ const fin=h=>{if(id!==S.rhid)return;S.rh=h;S.rupd=new Date();rpUpd();if(S.rv==='ov'&&$('rpmain'))rpBody()};
+ google.script.run.withSuccessHandler(r=>{if(id!==S.rhid)return;
+   if(r&&r.success){S.ryrs=r.data.years;rpYearSel();fin(r.data)}
+   else{if(r&&/Session expired/.test(r.error))setTimeout(()=>location.reload(),1500);fin({err:(r&&r.error)||'Could not load the overview.'})}})
+  .withFailureHandler(()=>fin({err:'The Reports service is not available yet. Add Reports.gs and deploy a new version.'})).reportsHome(S.token,sy,S.rfresh)}
+
+function rpOv(el){const h=S.rh;let top;
+ if(!h)top='<div class="kpis">'+'<div class="kpi"><i class="galsk" style="height:64px;border-radius:12px"></i></div>'.repeat(6)+'</div>';
+ else if(h.err)top=`<div class="card"><div class="aemp">${esc(h.err)}</div></div>`;
+ else{const k=h.kpis;top=`<div class="kpis">${kpi('c1',I.adm,'Total applicants',nfmt(k.total),'All records, SY '+esc(h.sy))}${kpi('c2',I.home,'Enrolled',nfmt(k.enrolled),rpPc(k.enrolled,k.total)+' of applicants')}${kpi('c3',I.rep,'Not yet enrolled',nfmt(k.pending),rpPc(k.pending,k.total)+' of applicants')}${kpi('c4',I.cal,'Conversion rate',rpPc(k.enrolled,k.total),'Enrolled \u00f7 all applicants')}${kpi('c5',I.flag,'Temporary',nfmt(k.temp),'Enrolled with a hold')}${kpi('c1',I.out,'Transferred / cancelled',nfmt(k.transferred+k.cancelled),nfmt(k.transferred)+' transferred, '+nfmt(k.cancelled)+' cancelled')}</div>
+  <div class="scn" style="margin:0 0 16px">${SICO.info}<div><b>How rates are calculated.</b> Conversion rate = Enrolled \u00f7 all learners registered in the selected school year, including cancelled and transferred-out records.</div></div>`}
+ const fav=rpFav(),rec=rrGet().slice(0,4),use=rpUse(),pop=Object.keys(use).filter(k=>RP_F[k]).sort((a,b)=>use[b]-use[a]).slice(0,4),freq=pop.length?pop:['daily','overview','section','scholar'];
+ const sec=(t,ids,empty)=>`<div class="card"><div class="ch"><h3>${t}</h3></div>${ids.length?`<div class="rpx-grid">${ids.map(i=>rpCard(i)).join('')}</div>`:`<div class="aemp">${empty}</div>`}</div>`;
+ el.innerHTML=top+sec(pop.length?'Frequently used':'Suggested reports',freq,'')+sec('Favorites',fav,'No favorites yet. Use the star on any report.')+sec('Recently used',rec,'Reports you open will appear here.')}
+
+/* ---------- Library ---------- */
+function rpCard(id,o){o=o||{};const x=rpR(id);if(!x)return '';const c=rpCat(id);
+ return `<div class="rpx-c"><div class="rpx-ct"><span class="ao ${x[3]}">${x[4]}</span>${rpStar(id,rpFav().includes(id))}</div><b>${esc(x[1])}</b><p>${esc(x[2])}</p><div class="rpx-cf"><span class="chip">${esc(o.cat||(c?c.n:''))}${o.sc?' \u00b7 shortcut':''}</span><button class="btn" data-act="rp" data-v="${id}">Open</button></div></div>`}
+
+function rpLib(el){if(S.rw)return rpWork(el);
+ const T=[['all','All reports'],['fav','Favorites'],['rec','Recently used']],C=[['','All categories']].concat(RP_CATS.map(c=>[c.id,c.n]));
+ el.innerHTML=`<div class="card"><div class="rpx-row"><div class="seg" role="group" aria-label="Report list">${T.map(x=>`<button type="button" class="${S.rtab===x[0]?'on':''}" aria-pressed="${S.rtab===x[0]}" data-act="rltab" data-v="${x[0]}">${x[1]}</button>`).join('')}</div></div>
+  ${S.rtab==='all'?`<div class="rpills" style="margin-top:12px">${C.map(x=>`<button class="pill ${S.rcat===x[0]?'on':''}" data-act="rlcat" data-v="${x[0]}">${esc(x[1])}</button>`).join('')}</div>`:''}</div><div id="rplist"></div>`;
+ rpList();const q=$('rpq');if(q&&q.value!==S.rq)q.value=S.rq}
+act.rltab=v=>{S.rtab=v;rpBody()};act.rlcat=v=>{S.rcat=v;rpBody()};
+
+function rpList(){const el=$('rplist');if(!el)return;const q=(S.rq||'').trim().toLowerCase(),
+ hit=id=>{const x=rpR(id),c=rpCat(id);return x&&(!q||(x[1]+' '+x[2]+' '+(c?c.n:'')).toLowerCase().includes(q))};let G;
+ if(S.rtab==='fav'||S.rtab==='rec'){const ids=(S.rtab==='fav'?rpFav():rrGet()).filter(hit);G=ids.length?[{n:S.rtab==='fav'?'Favorites':'Recently used',ids:ids,sc:[]}]:[]}
+ else G=RP_CATS.filter(c=>!S.rcat||c.id===S.rcat).map(c=>({n:c.n,ids:c.ids.filter(hit),sc:(S.rcat?c.sc:[]).filter(hit)})).filter(g=>g.ids.length||g.sc.length);
+ const n=G.reduce((a,g)=>a+g.ids.length+g.sc.length,0);
+ el.innerHTML=n?`<p class="rpx-n" style="margin:0 0 10px">${n} report${n===1?'':'s'}</p>`+G.map(g=>`<div class="rgl">${esc(g.n)}</div><div class="rpx-grid rpx-sec">${g.ids.map(i=>rpCard(i)).join('')}${g.sc.map(i=>rpCard(i,{sc:1,cat:g.n})).join('')}</div>`).join('')
+  :`<div class="card"><div class="emp"><i>${I.search}</i><b>${S.rtab==='fav'?'No favorites yet':S.rtab==='rec'?'Nothing used yet':'No matching reports'}</b><p>${S.rtab==='fav'?'Use the star on a report card to keep it here.':S.rtab==='rec'?'Reports you open will appear here.':'Try another word or category.'}</p></div></div>`}
+
+/* ---------- Report workspace ---------- */
+selRep=function(t){if(!rpR(t)||!$('rpmain'))return;if(S.rw!==t)rpTouch(t);S.rv='lib';S.rw=t;S.rt=t;S.rep=null;rpTabs();rpBody()};
+act.rpback=()=>{S.rw=null;S.rep=null;rpBody()};
+
+function rpWork(el){const id=S.rw,x=rpR(id),c=rpCat(id),k=RP_F[id],pre=(c?c.n+' \u00b7 ':'')+x[2];let f;
+ if(k==='class')f=`<div class="g" style="align-items:end"><div class="f"><label>Grade level</label><select id="rfg" onchange="rfGrade()">${S.grades.map(g=>`<option ${g===S.rf.grade?'selected':''}>${g}</option>`).join('')}</select></div><div class="f"><label>Section</label><select id="rfs">${secOpts()}</select></div><div class="f"><button class="btn" data-act="rgo">Generate preview</button></div></div>`;
+ else if(k==='level'){S.rlv=S.rlv||'All';f=`<div class="rpills">${['All'].concat(RGROUPS).map(y=>`<button class="pill ${y===S.rlv?'on':''}" data-act="rlvl" data-v="${esc(y)}">${y==='All'?'All levels':esc(y)}</button>`).join('')}</div>`}
+ else f='<p class="rpx-n">This report has no extra filters. It uses the school year selected above.</p>';
+ el.innerHTML=`<div class="card"><div class="rpx-row"><button class="btn alt" data-act="rpback">&larr; Library</button><span class="ao ${x[3]}">${x[4]}</span><div class="rpx-title"><h3>${esc(x[1])}</h3><small id="rpwsub" data-pre="${esc(pre)}">${esc(pre)} \u00b7 School Year ${esc(S.rsy)}</small></div>${rpStar(id,rpFav().includes(id))}</div></div>
+  <div class="card"><div class="ch"><h3>Filters</h3></div>${f}${k==='class'&&!S.rep?'<p class="rpx-n" style="margin-top:12px">Choose a class, then click Generate preview.</p>':''}</div>${id==='personal'?pickerHTML():''}<div id="rout"></div>`;
+ if(k!=='class')runRep(id,id==='scholar'?S.rlv:'')}
+
+/* ---------- Run + render ---------- */
+function rpErr(msg,t,a){const o=$('rout');if(!o)return;S.rlast=[t,a];
+ if(/Session expired/.test(msg))setTimeout(()=>location.reload(),1500);
+ o.innerHTML=`<div class="card"><div class="emp"><i>${I.rep}</i><b>The report could not be generated</b><p>${esc(msg)}</p><button class="btn alt" data-act="rpretry">Try again</button></div></div>`}
+act.rpretry=()=>{const l=S.rlast;if(l)runRep(l[0],l[1])};
+
+runRep=function(t,a){const o=$('rout');if(!o)return;S.rtype=t;const rid=++S.rrid,sy=S.rsy;
+ o.innerHTML='<div class="card"><i class="galsk" style="height:140px;border-radius:12px"></i></div>';
+ google.script.run
+  .withSuccessHandler(r=>{if(rid!==S.rrid||!$('rout'))return;
+   if(!r||!r.success)return rpErr((r&&r.error)||'Report failed.',t,a);
+   const d=r.data;if(sy!==S.cfg.sy&&d.sy!==sy)return rpErr('The server has not been updated for school-year reports. Apply the Code.gs edits and deploy a new version.',t,a);
+   S.rep=d;S.refName=a;S.rlim={};S.rupd=new Date();rpUpd();rpOut(t);
+   if(RP_F[S.rw]==='class'||t==='advd'||t==='refd')$('rout').scrollIntoView({behavior:'smooth',block:'start'})})
+  .withFailureHandler(e=>{if(rid===S.rrid)rpErr(e.message,t,a)})
+  .report(S.token,t,a==null?'':a,sy)};
+
+const rpLim=b=>b.rows&&b.rows.length>100&&!b.tips&&!b.actions&&!b.rcol&&String(b.rows[b.rows.length-1][0])!=='TOTAL';
+function rpOut(t){const d=S.rep,o=$('rout');if(!d||!o)return;const x=rpR(({refd:'referral',advd:'adviser'})[t]||t)||['','','','c1',I.rep];
+ const body=(d.blocks||[]).map((b,i)=>{if(!rpLim(b))return blockHTML(b,t);const n=S.rlim[i]||100;
+  return blockHTML(Object.assign({},b,{rows:b.rows.slice(0,n)}),t)+(n<b.rows.length?`<div style="text-align:center;margin:-8px 0 18px"><button class="btn alt" data-act="rmore" data-v="${i}">Show more</button><div style="color:var(--mut);font-size:12.5px;margin-top:6px">Showing ${n} of ${b.rows.length}. Print and CSV include every row.</div></div>`:'')}).join('');
+ o.innerHTML=`<div class="rhd"><div class="rht"><span class="ao ${x[3]}">${x[4]}</span><div><h3>${esc(d.title)}</h3><small>${esc(d.asof)}</small></div></div><div class="rha"><button class="btn alt" data-act="prrep">Print / Save as PDF</button><button class="btn alt" data-act="csv">Download CSV</button>${t==='refd'?'<button class="btn" data-act="prref">Print referral form</button>':''}${t==='advd'?'<button class="btn alt" data-act="advback">&larr; Back to adviser report</button>':''}</div></div><div>${body||'<div class="card"><div class="aemp">No data for this selection.</div></div>'}</div>`;
+ if(S.rsy!==S.cfg.sy)o.querySelectorAll('[data-act=delc]').forEach(b=>b.remove())}
+act.rmore=i=>{S.rlim[i]=(S.rlim[i]||100)+200;rpOut(S.rtype)};
+
+/* masterlist and referral form must use the selected school year too; deleting is active year only */
+act.mlist=v=>{const q=v.split('|');call('report',[T(),'advisory',{grade:q[0],section:q[1]||'(none)',ml:1},S.rsy],r=>printReport(r.data,'advisory'))};
+act.refp=n=>call('report',[T(),'refd',n,S.rsy],r=>printRef(n,r.data.blocks[0].rows));
+const _delcRp=act.delc;
+act.delc=id=>{if(S.rsy!==S.cfg.sy)return toast('Records can only be deleted from the active school year.',false);_delcRp(id)};
+
+/* favorites: update stars in place, no re-run of the open report */
+act.rfav=id=>{try{const f=rpFav(),i=f.indexOf(id);if(i>=0)f.splice(i,1);else f.push(id);localStorage.setItem('mrh_rf',JSON.stringify(f))}
+ catch(e){return toast('Favorites could not be saved on this device.',false)}
+ const on=rpFav().includes(id);
+ document.querySelectorAll('[data-act=rfav][data-v="'+id+'"]').forEach(b=>{b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.setAttribute('aria-label',on?'Remove from favorites':'Add to favorites')});
+ if(S.rv==='lib'&&!S.rw&&S.rtab==='fav')rpList();else if(S.rv==='ov'||S.rv==='sv')rpBody()};
+
+/* ---------- Phase 3 / 4 placeholders (navigation is in place) ---------- */
+const rpSoon=(t,p,w,ids,lbl)=>`<div class="card"><div class="ch"><h3>${t}</h3><span class="chip warn">${p}</span></div><p style="margin:0 0 14px;color:var(--mut)">${w}</p>${ids.length?`<div class="rgl" style="margin-top:0">${lbl}</div><div class="rpx-grid">${ids.map(i=>rpCard(i)).join('')}</div>`:''}</div>`;
+function rpAn(el){el.innerHTML=rpSoon('Analytics Dashboard','Phase 3','Trend charts, year-over-year comparisons and drill-down are planned for Phase 3. Until then, these reports already include charts:',['overview','demographic','scholar','section'],'Reports with charts')}
+function rpSv(el){const f=rpFav();el.innerHTML=rpSoon('Saved Reports','Phase 4','Saved filter configurations are planned for Phase 4. For now, favorites are kept on this device.',f,f.length?'Your favorites':'')+(f.length?'':'<div class="card"><div class="aemp">No favorites yet. Use the star on any report.</div></div>')}
+function rpHi(el){const r=rrGet();el.innerHTML=rpSoon('Report History','Phase 4','A full history with user, format and status is planned for Phase 4. Every report view is already recorded in the Audit sheet. Reports you opened on this device:',r,r.length?'Recently used':'')+(r.length?'':'<div class="card"><div class="aemp">Nothing opened on this device yet.</div></div>')}
+/* ===== Reports & Analytics v3, Phase 2: export menu, column chooser, preview summary =====
+   Paste AFTER the Phase 1 block. Replaces rpOut, rpErr, act.prrep, act.csv, act.exptoday. */
+(function(){const s=document.createElement('style');s.textContent=`
+@media screen{
+.rpx-sum{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.rpx-sum .chip{font-size:12.5px}
+.rpx-cols{display:grid;gap:8px;max-height:50vh;overflow:auto}
+.rpx-cols label{display:flex;gap:10px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.rpx-cols input{width:18px;height:18px;margin:0}
+html[data-theme=dark] .rpx-cols label{border-color:var(--line);background:#0e1538}
+}`;document.head.appendChild(s)})();
+
+CLOSEA.push('rcx');
+S.rhide=S.rhide||{};
+/* reports where choosing columns makes sense (Personal Data already has its own field picker) */
+const RP_COLS=['requirements','advisory'];
+
+/* ---------- context + export view ---------- */
+function rpCtx(){const t=S.rtype;
+ if(['advisory','personal','requirements'].includes(t)&&S.rf)return S.rf.grade+' \u00b7 '+(S.rf.section==='*'?'All sections':S.rf.section==='(none)'?'Unassigned':S.rf.section);
+ if(t==='scholar')return S.rlv&&S.rlv!=='All'?S.rlv:'All levels';
+ return ''}
+/** The report exactly as the person sees it (hidden columns removed). Print, CSV and Excel all use this. */
+function rpView(){const d=S.rep,h=S.rhide[S.rtype]||[],ctx=rpCtx();
+ const blocks=(d.blocks||[]).map(b=>{if(!b.cols||!h.length)return b;
+  const keep=b.cols.map((c,i)=>i===0||!h.includes(c));if(keep.every(Boolean))return b;
+  const map={};let n=0;keep.forEach((k,i)=>{if(k)map[i]=n++});
+  const rm=o=>{if(!o)return o;const r={};Object.keys(o).forEach(k=>{if(k in map)r[map[k]]=o[k]});return r};
+  return Object.assign({},b,{cols:b.cols.filter((c,i)=>keep[i]),rows:b.rows.map(r=>r.filter((c,i)=>keep[i])),
+   num:(b.num||[]).filter(i=>i in map).map(i=>map[i]),bcols:rm(b.bcols),hcols:rm(b.hcols),
+   pctCol:b.pctCol!=null&&(b.pctCol in map)?map[b.pctCol]:undefined})});
+ return Object.assign({},d,{blocks:blocks,asof:(ctx?ctx+'  \u2022  ':'')+d.asof})}
+const rpFile=()=>String(S.rep.title||'report').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').toLowerCase()+'_sy'+String(S.rep.sy||S.cfg.sy).replace('-','_');
+const rpRows=d=>(d.blocks||[]).filter(b=>b.cols).reduce((a,b)=>a+b.rows.filter(r=>String(r[0])!=='TOTAL').length,0);
+
+/* ---------- preview ---------- */
+rpOut=function(t){const o=$('rout');if(!S.rep||!o)return;const d=rpView(),x=rpR(({refd:'referral',advd:'adviser'})[t]||t)||['','','','c1',I.rep],
+ hid=(S.rhide[t]||[]).length,tbl=(d.blocks||[]).filter(b=>b.cols).length,n=rpRows(d),ctx=rpCtx();
+ const body=(d.blocks||[]).map((b,i)=>{if(!rpLim(b))return blockHTML(b,t);const k=S.rlim[i]||100;
+  return blockHTML(Object.assign({},b,{rows:b.rows.slice(0,k)}),t)+(k<b.rows.length?`<div style="text-align:center;margin:-8px 0 18px"><button class="btn alt" data-act="rmore" data-v="${i}">Show more</button><div style="color:var(--mut);font-size:12.5px;margin-top:6px">Showing ${k} of ${b.rows.length}. Print, CSV and Excel include every row.</div></div>`:'')}).join('');
+ o.innerHTML=`<div class="rhd"><div class="rht"><span class="ao ${x[3]}">${x[4]}</span><div><h3>${esc(d.title)}</h3><small>${esc(d.asof)}</small></div></div><div class="rha">${RP_COLS.includes(t)?`<button class="btn alt" data-act="rcols">Columns${hid?' ('+hid+' hidden)':''}</button>`:''}<button class="btn alt" data-act="prrep">Print / PDF</button><button class="btn alt" data-act="csv">CSV</button><button class="btn alt" data-act="xlsx">Excel</button>${t==='refd'?'<button class="btn" data-act="prref">Print referral form</button>':''}${t==='advd'?'<button class="btn alt" data-act="advback">&larr; Back to adviser report</button>':''}</div></div>
+ <div class="rpx-sum"><span class="chip">School Year ${esc(S.rep.sy||S.cfg.sy)}</span>${ctx?`<span class="chip">${esc(ctx)}</span>`:''}<span class="chip">${tbl} table${tbl===1?'':'s'}</span>${tbl?`<span class="chip">${nfmt(n)} row${n===1?'':'s'}</span>`:''}${hid?`<span class="chip warn">${hid} column${hid===1?'':'s'} hidden</span>`:''}</div>
+ <div>${body||'<div class="card"><div class="aemp">No data for this selection.</div></div>'}</div>`;
+ if(S.rsy!==S.cfg.sy)o.querySelectorAll('[data-act=delc]').forEach(b=>b.remove())};
+
+/* ---------- errors and empty states ---------- */
+rpErr=function(msg,t,a){const o=$('rout');if(!o)return;S.rlast=[t,a];
+ if(/Session expired/.test(msg))setTimeout(()=>location.reload(),1500);
+ if(/No learners found/.test(msg))return o.innerHTML=`<div class="card"><div class="emp"><i>${I.search}</i><b>No learners in this class</b><p>${esc(msg)} Try another section or school year.</p></div></div>`;
+ o.innerHTML=`<div class="card"><div class="emp"><i>${I.rep}</i><b>The report could not be generated</b><p>${esc(msg)}</p><button class="btn alt" data-act="rpretry">Try again</button></div></div>`};
+
+/* ---------- column chooser ---------- */
+act.rcols=()=>{const t=S.rtype,b=((S.rep&&S.rep.blocks)||[]).find(x=>x.cols);if(!b)return;
+ const old=$('rcm');if(old)old.remove();const m=document.createElement('div');m.className='mod';m.id='rcm';
+ m.innerHTML=`<div style="max-width:460px"><div class="bd"><h3 style="color:var(--navy);margin:0 0 4px">Columns</h3><p style="color:var(--mut);margin:0 0 12px">Hidden columns are left out of the preview, print, CSV and Excel. The first column always stays.</p><div class="rpx-cols">${b.cols.slice(1).map(c=>`<label><input type="checkbox" data-act="rcol" data-v="${esc(c)}" ${(S.rhide[t]||[]).includes(c)?'':'checked'}> ${esc(c)}</label>`).join('')}</div></div><div class="ft"><button class="btn alt" data-act="rcreset">Show all</button><button class="btn" data-act="rcx">Done</button></div></div>`;
+ document.body.appendChild(m)};
+act.rcol=c=>{const t=S.rtype,h=S.rhide[t]||(S.rhide[t]=[]),i=h.indexOf(c);if(i>=0)h.splice(i,1);else h.push(c);rpOut(t)};
+act.rcreset=()=>{S.rhide[S.rtype]=[];rpOut(S.rtype);act.rcols()};
+act.rcx=()=>{const m=$('rcm');if(m)m.remove()};
+
+/* ---------- exports ---------- */
+act.prrep=()=>{if(S.rep)printReport(rpView(),S.rtype)};
+act.csv=()=>{if(!S.rep)return;const d=rpView();
+ dl(rpFile()+'.csv',(d.blocks||[]).filter(b=>b.cols).map(b=>(b.plain?[]:[csvCell(b.title)]).concat([b.cols.map(csvCell).join(',')],b.rows.map(r=>r.map(csvCell).join(','))).join('\n')).join('\n\n'))};
+act.exptoday=()=>call('report',[T(),'daily',''],r=>{S.rep=r.data;S.rtype='daily';act.csv()});
+act.xlsx=async()=>{if(!S.rep)return;const d=rpView(),tb=(d.blocks||[]).filter(b=>b.cols);
+ if(!tb.length)return toast('This report has no tables to export.',false);
+ $('load').classList.remove('hidden');
+ try{if(!window.XLSX)await loadJs('https:\x2f\x2fcdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const wb=XLSX.utils.book_new(),used={};
+  tb.forEach(b=>{const base=String(b.title||'Report').replace(/[\\\/?*\[\]:]/g,' ').replace(/\s+/g,' ').trim().slice(0,28)||'Sheet';let k=base,j=2;
+   while(used[k.toLowerCase()])k=base.slice(0,26)+' '+j++;used[k.toLowerCase()]=1;
+   const ws=XLSX.utils.aoa_to_sheet([b.cols].concat(b.rows.map(r=>r.map(c=>c==null?'':c))));   /* text stays text: nothing is evaluated as a formula */
+   ws['!cols']=b.cols.map((c,i)=>({wch:Math.min(40,Math.max(String(c).length,...b.rows.slice(0,200).map(r=>String(r[i]==null?'':r[i]).length))+2)}));
+   XLSX.utils.book_append_sheet(wb,ws,k)});
+  XLSX.writeFile(wb,rpFile()+'.xlsx');toast('Downloaded '+rpFile()+'.xlsx')}
+ catch(e){toast('Excel export failed: '+e.message,false)}finally{$('load').classList.add('hidden')}};
+ 
+/* ===== Reports & Analytics v3, Phase 3: Analytics dashboard + drill-down ===== */
+(function(){const s=document.createElement('style');s.textContent=`
+@media screen{
+.anr{display:grid;grid-template-columns:minmax(90px,170px) 1fr auto;gap:10px;align-items:center;width:100%;border:0;background:none;padding:6px 8px;border-radius:8px;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.anr:hover{background:var(--soft)}.anr>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--mut)}
+.anb{height:10px;border-radius:6px;background:#eef2f9;overflow:hidden}.anb i{display:block;height:100%;border-radius:6px}
+.anr b{color:var(--navy);font-variant-numeric:tabular-nums}
+.ancols{display:flex;gap:6px;align-items:flex-end;height:150px;overflow-x:auto;padding:4px 2px 0}
+.ancol{flex:1 0 34px;max-width:70px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;border:0;background:none;cursor:pointer;font:inherit;color:var(--mut);font-size:11.5px;padding:0}
+.ancol i{display:block;width:100%;background:#2563eb;border-radius:6px 6px 0 0;min-height:3px}.ancol:hover i{background:#1d4ed8}.ancol b{color:var(--navy);font-size:12px}
+.anl{border:0;background:none;color:var(--blue);font:700 inherit;cursor:pointer;padding:2px 6px;border-radius:6px;font-family:inherit;font-size:inherit}
+.anl:hover{background:var(--soft);text-decoration:underline}
+.angap{display:flex;gap:8px;flex-wrap:wrap}
+.andef{margin:0;padding-left:20px;line-height:1.8;color:var(--mut);font-size:13px}
+html[data-theme=dark] .anb,html[data-theme=dark] .ancol{background-color:transparent}html[data-theme=dark] .anb{background:#0e1538}
+}`;document.head.appendChild(s)})();
+
+CLOSEA.push('anx');
+S.an=S.an||{lvl:'',from:'',to:''};S.ranid=0;
+const anKey=()=>[S.rsy,S.an.lvl,S.an.from,S.an.to].join('|');
+const AN_C=['#2563eb','#16a34a','#f59e0b','#7c3aed','#e11d48','#0891b2','#db2777','#64748b','#94a3b8'];
+
+/** Clickable horizontal bars. items = [{l, v, key}] */
+function anBars(items,kind,color){const mx=Math.max(1,...items.map(x=>x.v));
+ return items.length?`<div>${items.map((x,i)=>`<button type="button" class="anr" data-act="andr" data-v="${esc(JSON.stringify([kind,x.key==null?x.l:x.key]))}" title="Show learners"><span title="${esc(x.l)}">${esc(x.l)}</span><div class="anb"><i style="width:${x.v/mx*100}%;background:${color||AN_C[i%AN_C.length]}"></i></div><b>${nfmt(x.v)}</b></button>`).join('')}</div>`:'<div class="aemp">No data for this selection.</div>'}
+/** Donut with a clickable legend. */
+function anDonut(items,kind,center){const tot=items.reduce((a,x)=>a+x.v,0);let acc=0;
+ const seg=tot?items.filter(x=>x.v).map((x,i)=>{const c=AN_C[items.indexOf(x)%AN_C.length],st=acc;acc+=x.v/tot*100;return `${c} ${st}% ${acc}%`}).join(','):'#e6ebf3 0% 100%';
+ return `<div class="dn"><div class="donut"><div class="pie2" style="background:conic-gradient(${seg})"></div><div class="dctr"><b>${nfmt(tot)}</b><small>${esc(center)}</small></div></div><div class="dlg" style="min-width:200px">${items.map((x,i)=>`<button type="button" class="anr" style="grid-template-columns:12px 1fr auto auto;gap:8px" data-act="andr" data-v="${esc(JSON.stringify([kind,x.key==null?x.l:x.key]))}"><i style="width:12px;height:12px;border-radius:4px;background:${AN_C[i%AN_C.length]}"></i><span>${esc(x.l)}</span><b>${tot?Math.round(x.v/tot*100):0}%</b><b style="color:var(--mut)">${nfmt(x.v)}</b></button>`).join('')}</div></div>`}
+const anCard=(t,sub,body,def)=>`<div class="card"><div class="ch"><h3>${t}</h3>${sub?`<span style="color:var(--mut);font-size:13px">${sub}</span>`:''}</div>${body}${def?`<p class="rpx-n" style="margin:12px 0 0;font-size:12.5px"><b>Definition:</b> ${def}</p>`:''}</div>`;
+const anMon=k=>new Date(k+'-01T00:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+
+/* ---------- load ---------- */
+function anLoad(){const id=++S.ranid,key=anKey(),a=S.an;S.ran=null;
+ google.script.run.withSuccessHandler(r=>{if(id!==S.ranid)return;
+   S.ran=r&&r.success?{key:key,d:r.data}:{key:key,err:(r&&r.error)||'Could not load analytics.'};
+   if(r&&r.success){S.rupd=new Date();rpUpd()}else if(r&&/Session expired/.test(r.error))setTimeout(()=>location.reload(),1500);
+   if(S.rv==='an'&&$('rpmain'))rpBody()})
+  .withFailureHandler(()=>{if(id!==S.ranid)return;S.ran={key:key,err:'Analytics is not available yet. Add the Phase 3 functions to Reports.gs and deploy a new version.'};if(S.rv==='an'&&$('rpmain'))rpBody()})
+  .reportsAnalytics(S.token,S.rsy,a.lvl,a.from,a.to,S.rfresh)}
+
+const _rpYearAn=rpYear;rpYear=function(v){_rpYearAn(v);if(S.rv==='an')anLoad()};
+const _rfAn=act.rprefresh;act.rprefresh=()=>{_rfAn();if(S.rv==='an')anLoad()};
+act.anlvl=v=>{S.an.lvl=v;anLoad();rpBody()};
+act.anapply=()=>{const f=$('anf').value,t=$('ant').value;if(f&&t&&f>t)return toast('The start date is after the end date.',false);S.an.from=f;S.an.to=t;anLoad();rpBody()};
+act.anclr=()=>{S.an={lvl:S.an.lvl,from:'',to:''};anLoad();rpBody()};
+
+/* ---------- view (REPLACES rpAn) ---------- */
+rpAn=function(el){
+ const a=S.an,filt=`<div class="card"><div class="rpx-row"><div class="rpills" role="group" aria-label="School level">${['All'].concat(RGROUPS).map(g=>{const v=g==='All'?'':g;return `<button class="pill ${a.lvl===v?'on':''}" data-act="anlvl" data-v="${esc(v)}">${g==='All'?'All levels':esc(g)}</button>`}).join('')}</div></div>
+  <div class="rpx-row"><span class="rpx-lb">Admissions date range</span><input type="date" id="anf" class="rpx-sy" value="${esc(a.from)}" aria-label="From"><input type="date" id="ant" class="rpx-sy" value="${esc(a.to)}" aria-label="To"><button class="btn" data-act="anapply">Apply</button>${a.from||a.to?'<button class="btn alt" data-act="anclr">Clear dates</button>':''}<span class="rpx-n" style="font-size:12.5px">Applies to the funnel and monthly trend only (by registration date).</span></div></div>`;
+ if(!S.ran||S.ran.key!==anKey()){if(S.ranPend!==anKey())anLoad();return el.innerHTML=filt+'<div class="card"><i class="galsk" style="height:220px;border-radius:12px"></i></div>'}
+ if(S.ran.err)return el.innerHTML=filt+`<div class="card"><div class="emp"><i>${I.rep}</i><b>Analytics could not be loaded</b><p>${esc(S.ran.err)}</p><button class="btn alt" data-act="rprefresh">Try again</button></div></div>`;
+ const d=S.ran.d,lv=d.lvl||'All levels',pc=rpPc;
+ const gaps=[['sex',d.gaps.sex,'sex'],['religion',d.gaps.religion,'religion'],['scholarship category',d.gaps.category,'category'],['previous school',d.gaps.prevSchool,'previous school']].filter(x=>x[1]>0);
+ const kp=`<div class="kpis">${kpi('c1',I.adm,'Learners in scope',nfmt(d.population),lv+', SY '+esc(d.sy))}${kpi('c2',I.home,'Active (not cancelled / transferred)',nfmt(d.live),pc(d.live,d.population)+' of scope')}${kpi('c4',I.cal,'Conversion',pc(d.funnel.enrolled,d.funnel.total),'Enrolled \u00f7 registered'+(d.from||d.to?' in range':''))}${kpi('c3',I.rep,'Requirements complete',pc(d.compliance.complete,d.live),nfmt(d.compliance.complete)+' of '+nfmt(d.live)+' active')}</div>`;
+ const gapN=gaps.length?`<div class="scn" style="margin:0 0 16px">${SICO.info}<div><b>Incomplete data.</b> Among active learners, ${gaps.map(x=>nfmt(x[1])+' have no '+x[2]).join(', ')}. They are shown as "Not specified" or left out of those charts.</div></div>`:'';
+ /* enrollment by level */
+ const lvT=`<div class="tw"><table class="at"><thead><tr><th>Level</th><th class="n">Enrolled</th><th class="n">Not enrolled</th><th class="n">Cancelled / transferred</th><th class="n">Total</th></tr></thead><tbody>${d.byLevel.map(x=>{const b=(n,k)=>n?`<button class="anl" data-act="andr" data-v="${esc(JSON.stringify(['lvl',x.g+'|'+k]))}">${nfmt(n)}</button>`:'0';return `<tr><td><b>${esc(x.g)}</b></td><td class="n">${b(x.enrolled,'enrolled')}</td><td class="n">${b(x.pending,'pending')}</td><td class="n">${b(x.closed,'closed')}</td><td class="n"><b>${nfmt(x.enrolled+x.pending+x.closed)}</b></td></tr>`}).join('')||'<tr><td colspan="5" style="color:var(--mut)">No learners found.</td></tr>'}</tbody></table></div>`;
+ const lvC=d.byLevel.length?chartHTML({type:'stack',title:'',labels:d.byLevel.map(x=>x.g),series:[{name:'Enrolled',color:'#16a34a',values:d.byLevel.map(x=>x.enrolled)},{name:'Not enrolled',color:'#f59e0b',values:d.byLevel.map(x=>x.pending)},{name:'Cancelled / transferred',color:'#dc2626',values:d.byLevel.map(x=>x.closed)}]}):'';
+ /* funnel */
+ const f=d.funnel,fun=f.total?chartHTML({type:'funnel',title:'',stages:[{label:'Registered',value:f.total,color:'#2563eb'},{label:'Active',value:f.active,color:'#7c3aed'},{label:'Enrolled',value:f.enrolled,color:'#16a34a'}]})+`<div class="angap" style="margin-top:12px">${[['Registered','total',f.total],['Active','active',f.active],['Enrolled','enrolled',f.enrolled]].map(x=>`<button class="pill" data-act="andr" data-v="${esc(JSON.stringify(['funnel',x[1]]))}">${x[0]} (${nfmt(x[2])})</button>`).join('')}</div>`:'<div class="aemp">No registrations in this period.</div>';
+ /* monthly */
+ const mx=Math.max(1,...d.monthly.map(x=>x[1])),mon=d.monthly.length?`<div class="ancols">${d.monthly.map(x=>`<button type="button" class="ancol" data-act="andr" data-v="${esc(JSON.stringify(['month',x[0]]))}" title="${esc(anMon(x[0]))}: ${x[1]}"><b>${x[1]}</b><i style="height:${Math.max(3,x[1]/mx*100)}%"></i>${esc(anMon(x[0]))}</button>`).join('')}</div>`:'<div class="aemp">No registration dates in this period.</div>';
+ /* demographics */
+ const rel=d.religion.map(x=>({l:x[0],v:x[1]})).concat(d.religionOther?[{l:'Other religions',v:d.religionOther,key:'\u0000'}]:[]);
+ /* year over year */
+ const yo=d.yoy,ym=Math.max(1,...yo.map(x=>x.total)),yoyT=`<div class="tw"><table class="at"><thead><tr><th>School year</th><th class="n">Registered</th><th class="n">Enrolled</th><th class="n">Conversion</th><th style="min-width:140px"></th></tr></thead><tbody>${yo.map(x=>`<tr${x.sy===d.sy?' style="background:var(--soft)"':''}><td><b>${esc(x.sy)}</b>${x.sy===S.cfg.sy?' <span class="chip">active</span>':''}</td><td class="n">${nfmt(x.total)}</td><td class="n">${nfmt(x.enrolled)}</td><td class="n">${pc(x.enrolled,x.total)}</td><td><div class="anb"><i style="width:${x.total/ym*100}%;background:#cbd5e1"></i></div><div class="anb" style="margin-top:3px"><i style="width:${x.enrolled/ym*100}%;background:#16a34a"></i></div></td></tr>`).join('')}</tbody></table></div>`;
+ /* compliance */
+ const cm=d.compliance,comp=anDonut([{l:'Complete',v:cm.complete,key:'__c'},{l:'Missing documents',v:cm.incomplete,key:'__i'}].filter(x=>x.v),'__none','Active');
+ const compD=`<div class="dn"><div class="donut"><div class="pie2" style="background:conic-gradient(#16a34a 0 ${d.live?cm.complete/d.live*100:0}%,#dc2626 0)"></div><div class="dctr"><b>${pc(cm.complete,d.live)}</b><small>Complete</small></div></div><div class="dlg" style="min-width:200px"><div><i style="background:#16a34a"></i><span>Complete</span><b></b><em>${nfmt(cm.complete)}</em></div><div><i style="background:#dc2626"></i><span>Missing documents</span><b></b><em>${nfmt(cm.incomplete)}</em></div></div></div>`;
+ const missB=anBars(cm.missing.map(x=>({l:x[1],v:x[2],key:x[0]})),'req','#dc2626')+(cm.noConsent?anBars([{l:'Consent form outstanding',v:cm.noConsent,key:'consent'}],'consent','#d97706'):'');
+ el.innerHTML=filt+kp+gapN
+ +anCard('Enrollment by level','SY '+esc(d.sy),lvC+lvT,'Enrolled = status Enrolled. Not enrolled = Not Enrolled and Temporary. Cancelled / transferred are shown separately. Numbers open the learner list.')
+ +`<div class="row2">`+anCard('Applicant funnel',d.from||d.to?'Registered '+esc(d.from||'\u2026')+' to '+esc(d.to||'\u2026'):'All registrations',fun,'Registered = every record in the scope. Active excludes cancelled and transferred out. Enrolled = status Enrolled. Conversion = Enrolled \u00f7 Registered.')
+ +anCard('Monthly admissions','By registration month',mon,'Count of records by the month they were registered.')+`</div>`
+ +anCard('Enrolled learners by grade','Active enrolled only',anBars(d.byGrade.map(x=>({l:x[0],v:x[1]})),'grade'),'Learners with status Enrolled, by grade level.')
+ +`<div class="row2">`+anCard('Sex','Active learners',anDonut(d.sex.map(x=>({l:x[0],v:x[1]})),'sex','Learners'),'Legal sex as recorded. Blank = Not specified.')
+ +anCard('Religion','Top 8, active learners',anBars(rel,'religion'),'Religion as recorded ("Others, specify" shows the typed value).')+`</div>`
+ +anCard('Learners per section','Largest 30, active learners',anBars(d.sections.map(x=>({l:x[0],v:x[1],key:x[2]})),'section','#2563eb'),'Active learners with an assigned section. Unassigned learners are not listed.')
+ +anCard('Scholarship beneficiaries','Active learners by category',anDonut(d.scholar.map(x=>({l:x[0],v:x[1]})),'scholar','Learners'),'Category as recorded on the learner record.')
+ +`<div class="row2">`+anCard('Requirements compliance','Active learners',compD,'Complete = every mandatory document for the learner\u2019s level is submitted (the consent form is tracked separately below).')
+ +anCard('Missing documents','Click a bar for the list',missB,'Learners for whom the document is mandatory and not yet submitted.')+`</div>`
+ +anCard('Year over year','Up to the last 5 school years',yoyT,'Past years are rebuilt from Enrollment History plus records not yet re-enrolled, so statuses are as archived. Grey bar = registered, green bar = enrolled. Scope follows the level filter.')};
+
+/* ---------- drill-down ---------- */
+const AN_T={funnel:{total:'Registered',active:'Active',enrolled:'Enrolled'},lvl:0,grade:0,month:0};
+function anTitle(k,key){const T=AN_T;
+ if(k==='funnel')return 'Funnel: '+T.funnel[key];
+ if(k==='lvl'){const p=key.split('|');return p[0]+': '+({enrolled:'Enrolled',pending:'Not enrolled',closed:'Cancelled / transferred'}[p[1]]||'')}
+ if(k==='grade')return key+': enrolled';if(k==='month')return 'Registered in '+anMon(key);
+ if(k==='sex')return 'Sex: '+key;if(k==='religion')return 'Religion: '+key;if(k==='scholar')return 'Category: '+key;
+ if(k==='section')return 'Section: '+key.replace('|',' ');if(k==='req')return 'Missing: '+anReqLabel(key);if(k==='consent')return 'Consent form outstanding';return 'Learners'}
+const anReqLabel=k=>{const f=S.fields.find(x=>x[1]===k);return f?f[2]:k};
+act.andr=v=>{let q;try{q=JSON.parse(v)}catch(e){return}if(q[0]==='none'||q[1]==='\u0000')return;const a=S.an;
+ call('reportsDrill',[T(),S.rsy,a.lvl,a.from,a.to,q[0],q[1]],r=>{const d=r.data,old=$('anm');if(old)old.remove();const m=document.createElement('div');m.className='mod';m.id='anm';
+  const act1=S.rsy===S.cfg.sy;
+  m.innerHTML=`<div style="max-width:900px"><div class="bd"><h3 style="color:var(--navy);margin:0 0 4px">${esc(anTitle(q[0],q[1]))}</h3><p style="color:var(--mut);margin:0 0 12px">${nfmt(d.total)} learner${d.total===1?'':'s'} \u00b7 SY ${esc(S.rsy)}${d.capped?' \u00b7 showing the first '+d.rows.length:''}</p>${d.rows.length?`<div class="tw"><table class="at"><thead><tr><th>Learner</th><th>Class</th><th>Category</th><th>Status</th>${act1?'<th></th>':''}</tr></thead><tbody>${d.rows.map(r=>`<tr><td>${holdWho(r.name,r.id,'')}</td><td>${esc(tc(r.cls))||'\u2014'}</td><td>${esc(r.cat)||'\u2014'}</td><td><span class="chip ${stc(r.status)}">${esc(r.status)}</span></td>${act1?`<td><button class="btn alt" data-act="andopen" data-v="${esc(r.id)}">Open</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:'<div class="aemp">No learners in this group.</div>'}</div><div class="ft"><button class="btn alt" data-act="anx">Close</button></div></div>`;
+  document.body.appendChild(m)})};
+act.anx=()=>{const m=$('anm');if(m)m.remove()};
+act.andopen=id=>{act.anx();act.flopen(id)};
+
+/* ===== Reports & Analytics v3, Phase 4: saved reports, account favorites, history ===== */
+(function(){const s=document.createElement('style');s.textContent=`
+@media screen{
+.svr{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff}
+.svr b{color:var(--navy);font-size:15px}.svr p{margin:0;color:var(--mut);font-size:13px;line-height:1.5}
+.svr .rpx-cf{margin-top:auto}
+.svr .chips{display:flex;gap:6px;flex-wrap:wrap}
+html[data-theme=dark] .svr{background:#10173a}
+}`;document.head.appendChild(s)})();
+
+CLOSEA.push('rsx');
+S.rprefs=null;S.rhi=null;S.rhist='';S.rhil=false;
+
+/* ---------- preferences (favorites + saved) ---------- */
+function rpPrefLoad(cb){google.script.run.withSuccessHandler(r=>{
+  if(r&&r.success){S.rprefs=r.data;
+   try{const loc=JSON.parse(localStorage.getItem('mrh_rf')||'[]').filter(k=>RP_F[k]);   /* one-time move of this device's old favorites to the account */
+    if(!localStorage.getItem('mrh_rf_m')){localStorage.setItem('mrh_rf_m','1');
+     if(loc.length&&!S.rprefs.favs.length){S.rprefs.favs=loc;google.script.run.withFailureHandler(()=>{}).saveFavorites(S.token,loc)}}}catch(e){}}
+  if(cb)cb()}).withFailureHandler(()=>{if(cb)cb()}).reportsPrefs(S.token)}
+
+const _repP4=rep;
+rep=function(){_repP4();S.rhi=null;rpPrefLoad(()=>{if($('rpmain')&&(S.rv==='ov'||S.rv==='sv'||(S.rv==='lib'&&!S.rw)))rpBody()})};
+
+const _rtP4=act.rptab;
+act.rptab=v=>{if(v==='hi')S.rhi=null;if(v==='sv')rpPrefLoad(()=>{if(S.rv==='sv'&&$('rpmain'))rpBody()});_rtP4(v)};
+const _rfP4=act.rprefresh;
+act.rprefresh=()=>{if(S.rv==='hi')S.rhi=null;if(S.rv==='sv')rpPrefLoad(()=>{if(S.rv==='sv'&&$('rpmain'))rpBody()});_rfP4()};
+
+/* favorites now follow the account */
+act.rfav=id=>{const p=S.rprefs||(S.rprefs={favs:[],saved:[]}),f=p.favs.filter(k=>RP_F[k]),i=f.indexOf(id);
+ if(i>=0)f.splice(i,1);else f.push(id);p.favs=f;
+ google.script.run.withSuccessHandler(r=>{if(r&&!r.success)toast(r.error,false)}).withFailureHandler(()=>toast('Favorites could not be saved.',false)).saveFavorites(S.token,f);
+ const on=f.includes(id);
+ document.querySelectorAll('[data-act=rfav][data-v="'+id+'"]').forEach(b=>{b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.setAttribute('aria-label',on?'Remove from favorites':'Add to favorites')});
+ if(S.rv==='lib'&&!S.rw&&S.rtab==='fav')rpList();else if(S.rv==='ov'||S.rv==='sv')rpBody()};
+
+/* ---------- save a report configuration ---------- */
+const _rpWorkP4=rpWork;
+rpWork=function(el){_rpWorkP4(el);const st=el.querySelector('.rpx-row [data-act=rfav]');
+ if(st&&!el.querySelector('[data-act=rpsave]'))st.insertAdjacentHTML('beforebegin','<button class="btn alt" data-act="rpsave">Save report</button>')};
+
+function rpCfg(){const id=S.rw,k=RP_F[id],c={};
+ if(k==='class'){c.grade=($('rfg')||{}).value||S.rf.grade;c.section=($('rfs')||{}).value||S.rf.section}
+ if(k==='level')c.level=S.rlv&&S.rlv!=='All'?S.rlv:'';
+ if(id==='personal'){const f=[...document.querySelectorAll('.pfx:checked')].map(x=>x.value);c.fields=f.length?f:(S.pf||[])}
+ c.hide=(S.rhide&&S.rhide[id])||[];return c}
+function rpCfgSum(c,type){const g=c.cfg,p=[];
+ if(g.grade)p.push(g.grade+' / '+(g.section==='*'||!g.section?'All sections':g.section==='(none)'?'Unassigned':g.section));
+ if(g.level)p.push(g.level);else if(RP_F[type]==='level')p.push('All levels');
+ if(g.fields&&g.fields.length)p.push(g.fields.length+' data fields');
+ if(g.hide&&g.hide.length)p.push(g.hide.length+' hidden column'+(g.hide.length===1?'':'s'));
+ return p.join(' \u00b7 ')||'No extra filters'}
+
+act.rpsave=()=>{const id=S.rw;if(!id)return;const x=rpR(id),old=$('rsm');if(old)old.remove();
+ const m=document.createElement('div');m.className='mod';m.id='rsm';
+ m.innerHTML=`<div style="max-width:460px"><div class="bd"><h3 style="color:var(--navy);margin:0 0 4px">Save this report</h3><p style="color:var(--mut);margin:0 0 14px">Saves the report and its filters. It always regenerates from current data.</p>
+ <div class="f" style="margin-bottom:12px"><label>Name</label><input id="rsn" maxlength="60" value="${esc(x[1])}" style="text-transform:none" autocomplete="off"></div>
+ <label class="chk" style="margin-bottom:6px"><input type="checkbox" id="rsa" ${S.rsy===S.cfg.sy?'checked':''}> Always use the active school year (${esc(S.cfg.sy)})</label>
+ <label class="chk"><input type="checkbox" id="rss"> Share with other report users</label></div>
+ <div class="ft"><button class="btn alt" data-act="rsx">Cancel</button><button class="btn" data-act="rsok">Save</button></div></div>`;
+ document.body.appendChild(m);$('rsn').focus();$('rsn').select()};
+act.rsx=()=>{const m=$('rsm');if(m)m.remove()};
+act.rsok=()=>{const id=S.rw,sy=$('rsa').checked?'':S.rsy;
+ call('saveReportConfig',[T(),{name:$('rsn').value,type:id,sy:sy,shared:$('rss').checked,cfg:rpCfg()}],r=>{act.rsx();toast(r.message);rpPrefLoad(()=>{})})};
+
+/* ---------- Saved Reports view (REPLACES rpSv) ---------- */
+rpSv=function(el){const p=S.rprefs;
+ if(!p)return el.innerHTML='<div class="card"><i class="galsk" style="height:140px;border-radius:12px"></i></div>';
+ const q=(S.rq||'').trim().toLowerCase(),L=p.saved.filter(c=>!q||(c.name+' '+(rpR(c.type)||[,''])[1]).toLowerCase().includes(q)),fav=rpFav();
+ const cards=L.map(c=>{const x=rpR(c.type)||['','','','c1',I.rep],cat=rpCat(c.type);
+  return `<div class="svr"><div class="rpx-ct"><span class="ao ${x[3]}">${x[4]}</span><div class="chips">${c.shared?`<span class="chip">${c.mine?'Shared by you':'Shared by '+esc(tc(c.owner))}</span>`:'<span class="chip">Private</span>'}</div></div>
+   <b>${esc(c.name)}</b><p>${esc(x[1])}${cat?' \u00b7 '+esc(cat.n):''}<br>${esc(rpCfgSum(c,c.type))}<br>${c.sy?'School Year '+esc(c.sy):'Follows the active school year'}</p>
+   <div class="rpx-cf"><span style="color:var(--mut);font-size:12px">Updated ${esc(String(c.updated).slice(0,10))}</span><span style="display:flex;gap:6px"><button class="btn" data-act="rsrun" data-v="${esc(c.id)}">Run</button>${c.mine||SYS()?`<button class="btn red" data-act="rsdel" data-v="${esc(c.id)}">Delete</button>`:''}</span></div></div>`}).join('');
+ el.innerHTML=`<div class="card"><div class="ch"><h3>Saved reports</h3><span style="color:var(--mut);font-size:13px">${L.length} saved</span></div>${L.length?`<div class="rpx-grid">${cards}</div>`:`<div class="emp"><i>${I.rep}</i><b>${p.saved.length?'No matching saved reports':'No saved reports yet'}</b><p>${p.saved.length?'Try another word.':'Open a report from the Library, set its filters, then click Save report.'}</p><button class="btn alt" data-act="rptab" data-v="lib">Open the Library</button></div>`}</div>
+ <div class="card"><div class="ch"><h3>Favorites</h3><span style="color:var(--mut);font-size:13px">Follow your account on any device</span></div>${fav.length?`<div class="rpx-grid">${fav.map(i=>rpCard(i)).join('')}</div>`:'<div class="aemp">No favorites yet. Use the star on any report.</div>'}</div>`};
+
+act.rsrun=id=>{const c=(S.rprefs&&S.rprefs.saved||[]).find(x=>x.id===id);if(!c)return;const k=RP_F[c.type],g=c.cfg;
+ S.rsy=c.sy||S.cfg.sy;rpYearSel();
+ if(g.grade)S.rf={grade:g.grade,section:g.section||'*'};
+ S.rlv=g.level||'All';if(g.fields&&g.fields.length)S.pf=g.fields;
+ S.rhide[c.type]=g.hide||[];
+ selRep(c.type);rpNote();rpUpd();rpHome();
+ if(k==='class'){const a={grade:S.rf.grade,section:S.rf.section};if(c.type==='personal')a.fields=S.pf||PDEF;runRep(c.type,a)}};
+act.rsdel=id=>{if(confirm('Remove this saved report? Reports it created are not affected.'))call('deleteReportConfig',[T(),id],r=>{toast(r.message);rpPrefLoad(()=>{if(S.rv==='sv'&&$('rpmain'))rpBody()})})};
+
+/* ---------- logging exports and failures ---------- */
+const rpLogC=(f,st,d)=>{if(!S.rep||!S.rtype)return;google.script.run.withFailureHandler(()=>{}).reportLog(S.token,S.rtype,f,S.rep.sy||S.rsy,st,d||'')};
+const _prP4=act.prrep;act.prrep=()=>{_prP4();rpLogC('Print / PDF','Success')};
+const _csvP4=act.csv;act.csv=()=>{_csvP4();rpLogC('CSV','Success')};
+const _xlP4=act.xlsx;act.xlsx=async()=>{await _xlP4();rpLogC('Excel',window.XLSX?'Success':'Failed',window.XLSX?'':'Excel library not loaded')};
+const _reP4=rpErr;
+rpErr=function(m,t,a){_reP4(m,t,a);if(!/Session expired/.test(m))google.script.run.withFailureHandler(()=>{}).reportLog(S.token,t,'Preview',S.rsy,'Failed',String(m).slice(0,120))};
+
+/* ---------- Report History view (REPLACES rpHi) ---------- */
+function rpHiLoad(){if(S.rhil)return;S.rhil=true;
+ google.script.run.withSuccessHandler(r=>{S.rhil=false;S.rhi=r&&r.success?r.data:{err:(r&&r.error)||'Could not load the history.'};
+   if(r&&!r.success&&/Session expired/.test(r.error))setTimeout(()=>location.reload(),1500);if(S.rv==='hi'&&$('rpmain'))rpBody()})
+  .withFailureHandler(()=>{S.rhil=false;S.rhi={err:'History is not available yet. Add the Phase 4 functions to Reports.gs and deploy a new version.'};if(S.rv==='hi'&&$('rpmain'))rpBody()}).reportHistory(S.token)}
+rpHi=function(el){
+ if(!S.rhi){rpHiLoad();return el.innerHTML='<div class="card"><i class="galsk" style="height:180px;border-radius:12px"></i></div>'}
+ if(S.rhi.err)return el.innerHTML=`<div class="card"><div class="emp"><i>${I.rep}</i><b>History could not be loaded</b><p>${esc(S.rhi.err)}</p><button class="btn alt" data-act="rprefresh">Try again</button></div></div>`;
+ const q=(S.rq||'').trim().toLowerCase(),st=S.rhist,all=S.rhi.all;
+ const L=S.rhi.rows.filter(r=>(!st||r.status===st)&&(!q||(r.name+' '+r.by+' '+r.fmt+' '+r.detail).toLowerCase().includes(q)));
+ el.innerHTML=`<div class="card"><div class="ch"><h3>Report history</h3><span style="color:var(--mut);font-size:13px">${all?'All users':'Your activity'} \u00b7 latest ${S.rhi.rows.length}</span></div>
+  <div class="rpills" style="margin-bottom:14px">${[['','All'],['Success','Success'],['Failed','Failed']].map(x=>`<button class="pill ${st===x[0]?'on':''}" data-act="rhst" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>
+  ${L.length?`<div class="tw"><table class="at"><thead><tr><th>Report</th>${all?'<th>Generated by</th>':''}<th>When</th><th>School year</th><th>Format</th><th>Status</th><th></th></tr></thead><tbody>${L.map((r,i)=>`<tr><td><b>${esc(r.name)}</b>${r.detail?`<br><small style="color:var(--mut)">${esc(r.detail)}</small>`:''}</td>${all?`<td>${esc(tc(r.by))}</td>`:''}<td style="white-space:nowrap">${esc(r.when)}</td><td>${esc(r.sy)||'\u2014'}</td><td>${esc(r.fmt)}</td><td><span class="chip ${r.status==='Success'?'ok':'no'}">${esc(r.status)}</span></td><td>${RP_F[r.type]?`<button class="btn alt" data-act="rhopen" data-v="${esc(r.type+'|'+r.sy)}">Open report</button>`:''}</td></tr>`).join('')}</tbody></table></div>`
+  :`<div class="emp"><i>${I.rep}</i><b>No history yet</b><p>Previews, prints and exports will be listed here.</p></div>`}
+  <p class="rpx-n" style="margin:12px 0 0;font-size:12.5px">Only the report, school year, class or level, format and status are recorded. No learner data is stored.</p></div>`};
+act.rhst=v=>{S.rhist=v;rpBody()};
+act.rhopen=v=>{const q=v.split('|');if(q[1]&&/^\d{4}-\d{4}$/.test(q[1])){S.rsy=q[1];rpYearSel()}selRep(q[0]);rpNote();rpUpd()};
+/* ===== Reports & Analytics v3, Phase 5: fixes, refresh bypass, responsive polish ===== */
+(function(){const s=document.createElement('style');s.textContent=`
+@media screen and (max-width:600px){
+.rpx-ctl{width:100%}.rpx-sy{flex:1;min-width:0}.rpx-row .btn{flex:1 1 auto}
+.anr{grid-template-columns:minmax(70px,120px) 1fr auto}.ancols{height:130px}
+.rpx-title{min-width:0}.rpx-title h2{font-size:18px}
+}`;document.head.appendChild(s)})();
+
+/* analytics: remember which key is loading so a stale result reloads exactly once */
+const _anLoad5=anLoad;
+anLoad=function(){S.ranPend=anKey();_anLoad5()};
+
+/* Refresh skips the 5-minute server cache */
+const _rfP5=act.rprefresh;
+act.rprefresh=()=>{S.rfresh=true;try{_rfP5()}finally{S.rfresh=false}};
+
+/* favorites: do not save until the account's favorites have loaded */
+const _rfavP5=act.rfav;
+act.rfav=id=>{if(!S.rprefs)return toast('Loading your favorites. Try again in a moment.','warn');_rfavP5(id)};
+
+/* keyboard: keep focus on the selected tab after arrow keys, and mark the content area */
+const _rpTabsP5=rpTabs;
+rpTabs=function(){_rpTabsP5();segFocus()};
+const _repP5=rep;
+rep=function(){_repP5();const m=$('rpmain');if(m)m.setAttribute('role','tabpanel')};
+
+window.__reportsModuleReady = true;
